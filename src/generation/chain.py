@@ -31,6 +31,12 @@ class RAGResponse:
     query: str
 
 
+@dataclass
+class ChatMessage:
+    role: str   # "user" or "assistant"
+    content: str
+
+
 def build_context(chunks: list[RetrievedChunk]) -> str:
     """Format retrieved chunks into a numbered context block."""
     parts = []
@@ -91,6 +97,44 @@ Answer (cite sources using [Source: filename, chunk N] format):"""
 
         answer = response["message"]["content"]
         logger.success("Answer generated.")
+
+        return RAGResponse(answer=answer, sources=chunks, query=question)
+
+    def chat(self, question: str, history: list[ChatMessage],
+             filters: dict = None) -> RAGResponse:
+        """
+        Conversational RAG — retrieves context for the latest question,
+        then passes the full conversation history to the LLM so it can
+        reference prior turns.
+        """
+        logger.info(f"Chat turn: {question}")
+
+        chunks = self.retriever.retrieve(question, filters=filters)
+
+        if not chunks:
+            return RAGResponse(
+                answer="No relevant documents found. Please ingest some documents first.",
+                sources=[],
+                query=question,
+            )
+
+        context = build_context(chunks)
+
+        # Build message list: system → prior turns → new user turn with context
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+        for msg in history:
+            messages.append({"role": msg.role, "content": msg.content})
+
+        messages.append({
+            "role": "user",
+            "content": f"Context passages:\n{context}\n\nQuestion: {question}\n\nAnswer (cite sources using [Source: filename, chunk N] format):",
+        })
+
+        logger.debug("Calling Ollama (chat)...")
+        response = ollama.chat(model=settings.OLLAMA_MODEL, messages=messages)
+        answer = response["message"]["content"]
+        logger.success("Chat answer generated.")
 
         return RAGResponse(answer=answer, sources=chunks, query=question)
 

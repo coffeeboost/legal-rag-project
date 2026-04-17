@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from loguru import logger
 
 from src.ingestion.ingestor import Ingestor
-from src.generation.chain import RAGChain
+from src.generation.chain import RAGChain, ChatMessage
 
 
 # ── Lifespan — load models once at startup ───────────────────────────────────
@@ -45,6 +45,20 @@ class QueryResponse(BaseModel):
 class IngestResponse(BaseModel):
     filename: str
     chunks_ingested: int
+
+class ChatMessageRequest(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    question: str
+    history: list[ChatMessageRequest] = []
+    filters: dict | None = None
+
+class ChatResponse(BaseModel):
+    answer: str
+    sources: list[dict]
+    history: list[ChatMessageRequest]  # updated history to pass back next turn
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -92,6 +106,36 @@ async def query(req: QueryRequest):
             for c in result.sources
         ],
         query=result.query,
+    )
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(req: ChatRequest):
+    """Conversational RAG — maintains context across turns.
+    Pass the returned history back in your next request to continue the conversation."""
+    if not req.question.strip():
+        raise HTTPException(status_code=400, detail="Question cannot be empty.")
+
+    history = [ChatMessage(role=m.role, content=m.content) for m in req.history]
+    result = app.state.rag_chain.chat(req.question, history=history, filters=req.filters)
+
+    updated_history = list(req.history) + [
+        ChatMessageRequest(role="user", content=req.question),
+        ChatMessageRequest(role="assistant", content=result.answer),
+    ]
+
+    return ChatResponse(
+        answer=result.answer,
+        sources=[
+            {
+                "filename": c.filename,
+                "chunk_index": c.chunk_index,
+                "score": round(c.score, 4),
+                "preview": c.content[:200] + "...",
+            }
+            for c in result.sources
+        ],
+        history=updated_history,
     )
 
 
