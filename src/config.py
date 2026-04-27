@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIR: str = "./data/chroma"
     CHROMA_COLLECTION: str = "lexrag_docs"
 
+    # Sessions DB
+    DATABASE_PATH: str = "./data/sessions.db"
+
     # Chunking
     CHUNK_SIZE: int = 512
     CHUNK_OVERLAP: int = 64

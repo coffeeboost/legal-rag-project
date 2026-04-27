@@ -1,0 +1,40 @@
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lexrag-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data          # ChromaDB + SQLite persist here
+      - ./data/raw:/app/data/raw  # PDFs available inside container
+    environment:
+      - CHROMA_PERSIST_DIR=/data/chroma
+      - DATABASE_PATH=/data/sessions.db
+      # Ollama runs on your Windows host — accessible via host.docker.internal
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: lexrag-ui
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped

@@ -1,0 +1,11 @@
+myenv/
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.env
+data/chroma/
+mnt/
+outputs/

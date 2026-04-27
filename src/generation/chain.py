@@ -10,6 +10,9 @@ from loguru import logger
 from src.config import settings
 from src.retrieval.retriever import HybridRetriever, RetrievedChunk
 
+# Use configured base URL so Docker containers can reach host Ollama
+_ollama = ollama.Client(host=settings.OLLAMA_BASE_URL)
+
 
 SYSTEM_PROMPT = """You are LexRAG, an expert legal research assistant.
 
@@ -87,7 +90,7 @@ Question: {question}
 Answer (cite sources using [Source: filename, chunk N] format):"""
 
         logger.debug("Calling Ollama...")
-        response = ollama.chat(
+        response = _ollama.chat(
             model=settings.OLLAMA_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -132,7 +135,7 @@ Answer (cite sources using [Source: filename, chunk N] format):"""
         })
 
         logger.debug("Calling Ollama (chat)...")
-        response = ollama.chat(model=settings.OLLAMA_MODEL, messages=messages)
+        response = _ollama.chat(model=settings.OLLAMA_MODEL, messages=messages)
         answer = response["message"]["content"]
         logger.success("Chat answer generated.")
 
@@ -157,7 +160,7 @@ Question: {question}
 
 Answer (cite sources):"""
 
-        stream = ollama.chat(
+        stream = _ollama.chat(
             model=settings.OLLAMA_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
